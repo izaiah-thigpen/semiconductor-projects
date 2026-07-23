@@ -1,5 +1,4 @@
 # Semiconductor & Electrical Engineering Projects
-
 Izaiah Thigpen — B.S. Electrical Engineering, San Jose State University (Dec 2026)
 [afmresults.com](https://afmresults.com) · [LinkedIn](https://www.linkedin.com/in/izaiah-thigpen-685704329)
 
@@ -12,6 +11,7 @@ files, a results figure, and a written report.
 |---|---|---|
 | [Quantum-Dot NMOS PDK (TCAD)](./tcad-nmos-pdk) | Process / device simulation | Four-mask NMOS validated end-to-end in Sentaurus (SProcess/SDevice); Vt, SS, and gm extracted across a process DoE |
 | [Thermal Oxidation Characterization](./oxidation) | Fab process / metrology | Two-temperature study; within-wafer non-uniformity 11.9% → 1.2%, apparent Ea ≈ 1.06 eV, benchmarked to Deal–Grove |
+| [Photoresist Contrast Curve (AZ1512)](./photoresist-contrast) | Lithography / metrology | Extracted contrast γ = 1.98 and dose-to-clear E₀ = 48.6 mJ/cm² across 12 wafers; 5.7% coat uniformity, 19% dose-to-clear spread |
 | [Diode I–V Characterization](./diode-iv) | Device physics | Shockley fits (R² > 0.99) extracting ideality factor & saturation current for 5 devices |
 | [Wafer Process SPC](./wafer-spc) | Quality / yield | I-MR control charts over 5,000 wafers; defects localized to process-window excursions |
 | [Reliability Life-Data (Weibull)](./reliability-weibull) | Reliability | Censored-MLE Weibull (β=1.86 wear-out); Kaplan–Meier validation; AIC model selection |
@@ -22,7 +22,8 @@ files, a results figure, and a written report.
 ## Tools & skills
 Synopsys Sentaurus TCAD, Cadence Virtuoso, SPICE, SKY130 PDK, Verilog (Icarus/Vivado),
 Python (NumPy, pandas, SciPy, Matplotlib), MATLAB; semiconductor process & device
-simulation, parameter extraction, statistical analysis, MLE, SPC, reliability life-data
+simulation, parameter extraction, photolithography & resist contrast characterization,
+reflectometry metrology, statistical analysis, MLE, SPC, reliability life-data
 analysis, RTL design & verification, and control-loop design.
 
 *Several analysis scripts read their datasets directly from shared cloud links, so they
