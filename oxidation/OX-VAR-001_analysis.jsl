@@ -1,0 +1,282 @@
+/*=====================================================================
+  OX-VAR-001  Thermal oxide growth: variation characterization
+  JMP Scripting Language  |  written against JMP 17/18
+
+  Reproduces the full analysis from oxide_tidy_for_JMP.csv:
+    1  variance components (nested, REML)
+    2  within-wafer uniformity and the vertical position signature
+    3  Deal-Grove target and residuals
+    4  process capability
+    5  I-MR control charts
+  Every platform is journaled so the output can be exported as one PDF.
+
+  EDIT THIS LINE ONLY:
+=====================================================================*/
+csvPath = "$DOCUMENTS/oxide_tidy_for_JMP.csv";   // or a full path
+
+/*---------------------------------------------------------------------
+  0.  Import and set column properties
+---------------------------------------------------------------------*/
+dt = Open( csvPath );
+dt << Set Name( "Oxide thickness - all measurements" );
+
+// Modeling types. Slot is numeric but must be Nominal for the
+// variance-component work and Continuous for the trend plots, so it is
+// duplicated rather than switched back and forth.
+Column( dt, "Run"       ) << Modeling Type( "Nominal" );
+Column( dt, "Wafer"     ) << Modeling Type( "Nominal" );
+Column( dt, "FurnPos"   ) << Modeling Type( "Nominal" );
+Column( dt, "MeasPos"   ) << Modeling Type( "Nominal" );
+Column( dt, "Recipe"    ) << Modeling Type( "Nominal" );
+Column( dt, "Pt"        ) << Modeling Type( "Nominal" );
+Column( dt, "Thk_A"     ) << Modeling Type( "Continuous" );
+Column( dt, "Slot"      ) << Modeling Type( "Continuous" );
+
+// Value ordering so the furnace-frame plots read top-to-bottom, not
+// alphabetically. Without this JMP sorts Bottom, Center, Left, Right, Top.
+Column( dt, "FurnPos" ) << Set Property(
+	"Value Ordering", {"Top", "Center", "Bottom", "Left", "Right"}
+);
+
+/*---------------------------------------------------------------------
+  1.  Derived columns
+
+  Col Mean( x, g1, g2 ) is JMP's grouped mean. It is the idiom that makes
+  within-wafer work possible without building a summary table first.
+---------------------------------------------------------------------*/
+dt << New Column( "WaferMean_A", Numeric, Continuous,
+	Formula( Col Mean( :Thk_A, :Run, :Wafer ) )
+);
+
+dt << New Column( "Dev_A", Numeric, Continuous,
+	Formula( :Thk_A - :WaferMean_A )
+);
+
+dt << New Column( "Dev_pct", Numeric, Continuous, Format( "Fixed Dec", 6, 2 ),
+	Formula( 100 * :Dev_A / :WaferMean_A )
+);
+
+// Deal-Grove target, wet O2 on Si (100), tau = 0.
+// B    = 386     um^2/hr, Ea 0.78 eV
+// B/A  = 9.7e7   um/hr,   Ea 2.05 eV
+// x    = (A/2) * ( sqrt(1 + 4B t / A^2) - 1 ),  converted um -> Angstrom
+dt << New Column( "DG_Target_A", Numeric, Continuous, Format( "Fixed Dec", 8, 1 ),
+	Formula(
+		kB   = 8.617333e-5;
+		TK   = :SetpointC + 273.15;
+		thr  = :Time_min / 60;
+		Bpar = 386 * Exp( -0.78 / (kB * TK) );
+		BoA  = 9.7e7 * Exp( -2.05 / (kB * TK) );
+		Apar = Bpar / BoA;
+		(Apar / 2) * (Sqrt( 1 + 4 * Bpar * thr / (Apar ^ 2) ) - 1) * 10000;
+	)
+);
+
+dt << New Column( "DG_Resid_pct", Numeric, Continuous, Format( "Fixed Dec", 6, 1 ),
+	Formula( 100 * (:Thk_A - :DG_Target_A) / :DG_Target_A )
+);
+
+/* Normalising to target is what lets both recipes share one capability
+   platform. JMP holds spec limits as a column property, so two runs with
+   different targets would otherwise need two separate analyses. */
+dt << New Column( "Thk_norm", Numeric, Continuous, Format( "Fixed Dec", 6, 4 ),
+	Formula( :Thk_A / :DG_Target_A )
+);
+
+Column( dt, "Thk_norm" ) << Set Property(
+	"Spec Limits", {LSL( 0.90 ), Target( 1.00 ), USL( 1.10 ), Show Limits( 1 )}
+);
+
+/*---------------------------------------------------------------------
+  2.  Analysis subsets
+
+  Primary     = metrology-clean, 12 wafers/run
+  Sensitivity = primary minus the two unexplained outlier wafers
+---------------------------------------------------------------------*/
+dtP = dt << Subset(
+	Rows( dt << Get Rows Where( :MetrologyOK == 1 ) ),
+	Selected Columns Only( 0 ),
+	Output Table Name( "Primary - metrology clean" )
+);
+
+dtS = dt << Subset(
+	Rows( dt << Get Rows Where( :MetrologyOK == 1 & :Flagged == 0 ) ),
+	Selected Columns Only( 0 ),
+	Output Table Name( "Sensitivity - flagged removed" )
+);
+
+jrn = New Window( "OX-VAR-001 analysis", <<Journal );
+
+/*---------------------------------------------------------------------
+  3.  Variance components
+
+  Two routes, both reported. The Variability platform gives the % of
+  total table directly; Fit Model REML gives confidence intervals.
+---------------------------------------------------------------------*/
+vc = Variability Chart(
+	Y( :Thk_A ),
+	X( :Run, :Wafer ),
+	Analysis Type( "Nested" ),
+	Variance Components( 1 ),
+	Std Dev Chart( 1 ),
+	Show Group Means( 1 ),
+	SendToReport( Dispatch( {}, "Variability Chart", OutlineBox, {Set Title( "3.1 Variance components - nested" )} ) )
+);
+Report( vc ) << Journal;
+
+// Per-run REML. Wafer random, residual = within-wafer.
+fmREML = Fit Model(
+	Y( :Thk_A ),
+	Effects( :Wafer & Random ),
+	By( :Run ),
+	Personality( "Standard Least Squares" ),
+	Method( "REML" ),
+	Run(
+		Profiler( 0 ),
+		{:Thk_A << {Plot Actual by Predicted( 0 ), Plot Residual by Predicted( 1 )}}
+	)
+);
+For( i = 1, i <= N Items( fmREML ), i++, Report( fmREML[i] ) << Journal );
+
+/* Splitting the within-wafer term. FurnPos as a fixed effect on top of
+   Wafer partitions the residual into the repeatable position signature
+   and everything else. The FurnPos sum of squares is the number that
+   says how much of within-wafer variation is the vertical gradient. */
+fmPos = Fit Model(
+	Y( :Thk_A ),
+	Effects( :Wafer, :FurnPos ),
+	By( :Run ),
+	Personality( "Standard Least Squares" ),
+	Emphasis( "Minimal Report" ),
+	Run
+);
+For( i = 1, i <= N Items( fmPos ), i++, Report( fmPos[i] ) << Journal );
+
+/*---------------------------------------------------------------------
+  4.  Within-wafer uniformity
+---------------------------------------------------------------------*/
+dtU = dtP << Summary(
+	Group( :Run, :Slot ),
+	Mean( :Thk_A ), Std Dev( :Thk_A ), Min( :Thk_A ), Max( :Thk_A ), N( :Thk_A ),
+	Output Table Name( "Wafer uniformity" ),
+	Link to original data table( 0 )
+);
+
+dtU << New Column( "NU_halfrange_pct", Numeric, Continuous, Format( "Fixed Dec", 6, 2 ),
+	Formula( 100 * (:Name( "Max(Thk_A)" ) - :Name( "Min(Thk_A)" )) / (2 * :Name( "Mean(Thk_A)" )) )
+);
+dtU << New Column( "NU_1sigma_pct", Numeric, Continuous, Format( "Fixed Dec", 6, 2 ),
+	Formula( 100 * :Name( "Std Dev(Thk_A)" ) / :Name( "Mean(Thk_A)" ) )
+);
+
+tabU = dtU << Tabulate(
+	Add Table(
+		Column Table( Statistics( Mean, Min, Max ) ),
+		Row Table( Grouping Columns( :Run ) ),
+		Column Table( Analysis Columns( :NU_halfrange_pct, :NU_1sigma_pct ) )
+	)
+);
+Report( tabU ) << Journal;
+
+/* The furnace-frame profile. This is the headline plot: Top / Center /
+   Bottom is the wafer's vertical axis inside the tube, Left / Right its
+   horizontal axis. Measurement position 1 (labelled T on the wafer map)
+   is the BOTTOM of the wafer as loaded - the wafer map and the furnace
+   frame are inverted relative to each other, and L/R are swapped. */
+gbProfile = Graph Builder(
+	Size( 620, 380 ),
+	Variables( X( :Dev_pct ), Y( :FurnPos ), Overlay( :Run ) ),
+	Elements(
+		Points( X, Y, Legend( 1 ), Jitter( 1 ) ),
+		Caption Box( X, Y, Legend( 2 ), Summary Statistic( "Mean" ) )
+	),
+	SendToReport(
+		Dispatch( {}, "Graph Builder", FrameBox, {Reference Line( 0, "Solid", 1, "Black" )} ),
+		Dispatch( {}, "graph title", TextEditBox, {Set Text( "Within-wafer signature, furnace reference frame" )} )
+	)
+);
+Report( gbProfile ) << Journal;
+
+// Wafer mean by boat slot, to show the load-position trend
+gbSlot = Graph Builder(
+	Size( 620, 340 ),
+	Variables( X( :Slot ), Y( :Thk_A ), Overlay( :Run ) ),
+	Elements( Points( X, Y, Legend( 3 ) ), Smoother( X, Y, Legend( 4 ) ) )
+);
+Report( gbSlot ) << Journal;
+
+/*---------------------------------------------------------------------
+  5.  Deal-Grove residuals
+---------------------------------------------------------------------*/
+gbDG = Graph Builder(
+	Size( 620, 340 ),
+	Variables( X( :Slot ), Y( :DG_Resid_pct ), Overlay( :Run ) ),
+	Elements( Points( X, Y, Legend( 5 ) ) ),
+	SendToReport(
+		Dispatch( {}, "Graph Builder", FrameBox, {Reference Line( 0, "Solid", 1, "Black" )} ),
+		Dispatch( {}, "graph title", TextEditBox, {Set Text( "Deal-Grove residual by boat slot" )} )
+	)
+);
+Report( gbDG ) << Journal;
+
+biv = Bivariate(
+	Y( :Thk_A ), X( :DG_Target_A ),
+	Group By( :Run ),
+	Fit Line( {Line Color( "Gray" )} )
+);
+Report( biv ) << Journal;
+
+/*---------------------------------------------------------------------
+  6.  Process capability
+
+  Run on the normalised column so both recipes share one spec band.
+  Subgroup by wafer so JMP computes a within-subgroup sigma (Cp/Cpk)
+  alongside the overall sigma (Pp/Ppk).
+---------------------------------------------------------------------*/
+pc = Process Capability(
+	Process Variables( :Thk_norm ),
+	Subgroup ID Column( :Wafer ),
+	By( :Run ),
+	Capability Box Plots( 0 ),
+	Individual Detail Reports( 1 ),
+	Goal Plot( 0 ),
+	Process Performance Plot( 0 ),
+	Within Sigma Capability( 1 ),
+	Overall Sigma Capability( 1 )
+);
+For( i = 1, i <= N Items( pc ), i++, Report( pc[i] ) << Journal );
+
+/*---------------------------------------------------------------------
+  7.  I-MR control charts
+
+  The wafer mean is the rational subgroup: the five within-wafer points
+  are a spatial signature, not random sampling error, so an Xbar-R chart
+  treating them as a subgroup would understate within-wafer sigma.
+  Plotted in boat load order, NOT time order - with two runs there is no
+  basis for a time-ordered run-to-run chart. All limits are trial limits.
+---------------------------------------------------------------------*/
+cc = Control Chart(
+	By( :Run ),
+	Sample Label( :Slot ),
+	KSigma( 3 ),
+	Chart Col( :Name( "Mean(Thk_A)" ), Individual Measurement, Moving Range )
+);
+Try( For( i = 1, i <= N Items( cc ), i++, Report( cc[i] ) << Journal ),
+	Report( cc ) << Journal );
+
+/*---------------------------------------------------------------------
+  8.  Sensitivity case
+
+  Repeat the variance decomposition with the two unexplained outlier
+  wafers removed. The 900 C wafer-to-wafer term should collapse; that
+  collapse is the finding, not a cleanup step.
+---------------------------------------------------------------------*/
+Current Data Table( dtS );
+vcS = Variability Chart(
+	Y( :Thk_A ), X( :Run, :Wafer ),
+	Analysis Type( "Nested" ), Variance Components( 1 )
+);
+Report( vcS ) << Journal;
+
+Current Data Table( dtP );
+Print( "OX-VAR-001 complete. Journal window holds all output; File > Save As > PDF to export." );
