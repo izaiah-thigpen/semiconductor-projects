@@ -110,6 +110,17 @@ The activation energy cannot be estimated from these data. Two runs give zero
 degrees of freedom, no residual, and no confidence interval, and any two-point
 value absorbs every run-level difference between the two furnace loads.
 
+The original also reported that the 900 °C mean agreed with Deal–Grove to within
+about 5 %. That agreement came from applying the (111)→(100) orientation factor
+to a linear rate constant already expressed for (100) — dividing 9.7×10⁷ by 1.68,
+where 1.68 is exactly 1.63×10⁸ ÷ 9.7×10⁷ — which depressed the predicted
+thickness from 1352 Å to 862 Å. Corrected, both runs fall 33–35 % short of
+prediction: a uniform proportional deficit, rather than one temperature matching
+theory and the other not. The original's separate inference from the parabolic
+rate constant — that furnace water-vapour pressure sits below the value assumed
+by the standard constants — survives the correction and is the leading hypothesis
+in the current report.
+
 ---
 
 ## Files
