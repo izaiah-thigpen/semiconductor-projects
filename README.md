@@ -4,8 +4,16 @@ Izaiah Thigpen — B.S. Electrical Engineering, San Jose State University (Dec 2
 [afmresults.com](https://afmresults.com) · [LinkedIn](https://www.linkedin.com/in/izaiah-thigpen-685704329)
 
 Hands-on projects across semiconductor process characterization and control,
-device physics, TCAD, reliability, RTL design, and control systems. Each folder
+device physics, TCAD, reliability, RTL and ASIC design, AI hardware, and control systems. Each folder
 holds the code, a results figure, and a written report.
+
+## Featured: AI hardware
+
+| Project | Tools | Key result |
+| --- | --- | --- |
+| [Sparsity-Aware CNN Accelerator for Wafer-Map Defect Classification](sparse-conv-accelerator) ([full repo](https://github.com/izaiah-thigpen/tt-sparse-conv)) | SystemVerilog, LibreLane/OpenROAD, SKY130, OpenSTA, cocotb, Vivado (Zynq), PyTorch, KiCad | Zero-skipping MAC taped out on SkyWater 130 nm through Tiny Tapeout (2,690 cells, 50 MHz). Gate-level power: 23 % lower MAC dynamic power at 50 % zeros, 66 % at 90 %. FPGA version bit-exact on all 180 test maps |
+
+![One wafer map through the network](sparse-conv-accelerator/layers.png)
 
 ## Fab process & metrology
 
@@ -36,8 +44,10 @@ SPC/APC, gauge R&R, process capability, censored-MLE life-data analysis
 thermal oxidation, photolithography, Filmetrics reflectometry, Deal–Grove
 modelling, PDK development
 
-**Design:** Verilog RTL and self-checking verification (Icarus, Vivado), Cadence
-Virtuoso, SPICE, SKY130 PDK, MATLAB control-loop design
+**Design:** SystemVerilog/Verilog RTL, cocotb and self-checking verification (Icarus,
+Vivado), RTL-to-GDS (Yosys, LibreLane/OpenROAD), static timing and gate-level power
+(OpenSTA), Zynq FPGA with AXI DMA (PYNQ), KiCad PCB design, Cadence Virtuoso, SPICE,
+SKY130 PDK, MATLAB control-loop design
 
 *Several analysis scripts read their datasets directly from shared cloud links, so
 they run without local data files.*
