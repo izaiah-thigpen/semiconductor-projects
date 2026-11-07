@@ -1,6 +1,6 @@
 # Semiconductor & Electrical Engineering Projects
 
-Izaiah Thigpen — B.S. Electrical Engineering, San Jose State University (Dec 2026)
+Izaiah Thigpen — B.S. Electrical Engineering, San Jose State University (Dec 2026); M.S. Electrical Engineering, SJSU, starting Spring 2027
 [afmresults.com](https://afmresults.com) · [LinkedIn](https://www.linkedin.com/in/izaiah-thigpen-685704329)
 
 Hands-on projects across semiconductor process characterization and control,
